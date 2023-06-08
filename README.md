@@ -583,3 +583,59 @@ bash: warning: setlocale: LC_TIME: cannot change locale (en_US.UTF-8): No such f
 [root@w1 /]# find /tmp/registry -name my-busybox
 /tmp/registry/volumes/csi/csi-vol-23e896e8-05ed-11ee-8221-5ede4f76ef32/267a5223-222c-467e-bfbc-e6905ba13b93/docker/registry/v2/repositories/my-busybox
 ```
+
+```bash
+[root@w1 registry]# echo 'Hello Registry!' > file.txt
+[root@w1 registry]# ls
+file.txt  volumes
+[root@w1 registry]# cat file.txt
+Hello Registry!
+[root@w1 tmp]# umount /tmp/registry
+[root@w1 tmp]# ls
+mountpoint  registry
+[root@w1 tmp]# ls registry
+[root@w1 tmp]# mon_endpoints=$(grep mon_host /etc/ceph/ceph.conf | cut -f3 -d' ')
+[root@w1 tmp]# my_secret=$(grep key /etc/ceph/keyring | cut -f3 -d' ')
+[root@w1 tmp]# mount -t ceph -o mds_namespace=myfs,name=admin,secret=$my_secret $mon_endpoints:/ /tmp/registry
+[root@w1 tmp]# ls registry
+file.txt  volumes
+```
+
+```bash
+lab102-192:/ kubectl get pods --all-namespaces -o wide | sort -k8,8 | grep -E "coredns|metrics-server|rook-ceph-mgr"
+kube-system   coredns-854c77959c-hlj4x                        1/1     Running     0          6h47m   10.42.1.4      w1     <none>           <none>
+kube-system   metrics-server-86cbb8457f-dkqsm                 1/1     Running     0          6h47m   10.42.1.3      w1     <none>           <none>
+rook-ceph     rook-ceph-mgr-a-5b5b7fd568-hzm7h                1/1     Running     0          6h17m   10.42.2.8      w2     <none>           <none>
+lab102-192:/vagrantk3s/ vagrant halt w3
+==> w3: Attempting graceful shutdown of VM...
+E0608 16:37:16.033833   26879 portforward.go:234] lost connection to pod
+==> w3: Forcing shutdown of VM...
+[1]+  Done                    kubectl port-forward --namespace kube-system $POD 5000:5000  (wd: /misc/alumnos/as2/as22022/a798095/proyecto/aplicacionesCephRook)
+(wd now: /misc/alumnos/as2/as22022/a798095/proyecto/vagrantk3s)
+```
+
+```bash
+lab102-192:/ curl -i 192.168.1.71
+HTTP/1.1 302 Found
+Date: Thu, 08 Jun 2023 14:43:54 GMT
+Server: Apache/2.4.10 (Debian)
+X-Powered-By: PHP/5.6.28
+Expires: Wed, 11 Jan 1984 05:00:00 GMT
+Cache-Control: no-cache, must-revalidate, max-age=0
+Location: http://192.168.1.71/wp-admin/install.php
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
+```bash
+lab102-192:/ kubectl -n rook-ceph exec -it $( kubectl -n rook-ceph get pod -l app=rook-direct-mount --no-headers -o custom-columns=":metadata.name" ) -- bash
+bash: warning: setlocale: LC_CTYPE: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_COLLATE: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_MESSAGES: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_NUMERIC: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_TIME: cannot change locale (en_US.UTF-8): No such file or directory
+[root@w1 registry]# ls /tmp/registry
+file.txt  volumes
+[root@w1 registry]# cat /tmp/registry/file.txt
+Hello Registry!
+```
