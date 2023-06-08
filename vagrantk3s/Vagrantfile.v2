@@ -41,16 +41,25 @@ Vagrant.configure("2") do |config|
         
         v.customize ["modifyvm", :id, "--name", node[:hostname]]
 
-        # cREATE DISK
+        # CREATE DISK
         if node[:type] == "worker"
-            v.customize [ "createmedium", "--filename", "disk-#{node[:hostname]}.vdi", "--size", 30*1024 ]
-            v.customize [ "storageattach", :id, "--storagectl", "SCSI", "--port", 2, "--device", 0,"--type", "hdd", "--medium", "disk-#{node[:hostname]}.vdi" ]
+          vdi_file = "disk-#{node[:hostname]}.vdi"
+          unless File.exist?(vdi_file)
+            v.customize [ "createmedium", "--filename", vdi_file, "--size", 30*1024 ]
+            v.customize [ "storageattach", :id, "--storagectl", "SCSI", "--port", 2, "--device", 0,"--type", "hdd", "--medium", vdi_file ]
+          end
         end
             
         nodeconfig.vm.boot_timeout = 600
-        nodeconfig.vm.provision "shell", 
-            path: 'provision.sh', 
-            args: [ node[:hostname], node[:ip], node[:m], node[:type] ]
+        # nodeconfig.vm.provision "shell", 
+        #     path: 'provision.sh', 
+        #     args: [ node[:hostname], node[:ip], node[:m], node[:type] ]
+        nodeconfig.vm.provision "puppet" do |puppet|
+          puppet.manifests_path = "."
+          puppet.manifest_file  = "provision.pp"
+          puppet.options        = "--verbose --environment=<nombre_del_entorno> --no-daemonize --debug"
+          puppet.facter         = { "masterip" => node[:m], "nodeip" => node[:ip], "hostname" => node[:hostname], "nodetype" => node[:type] }
+        end
         
         if node[:type] == "master"
           nodeconfig.trigger.after :up do |trigger|
