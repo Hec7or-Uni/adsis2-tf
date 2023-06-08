@@ -497,7 +497,7 @@ Handling connection for 5000
 ---
 
 ```bash
-echo "FROM busybox" > Dockerfile
+lab102-192:/ echo "FROM busybox" > Dockerfile
 ```
 
 ```bash
