@@ -153,6 +153,8 @@ total_avail      87 GiB
 total_space      90 GiB
 ```
 
+### Paso 2
+
 ```bash
 lab102-192:/aplicacionesCephRook/ceph/ kubectl create -f storageclassRbdBlock.yaml
 ```
@@ -417,6 +419,167 @@ id pool        namespace image                                        snap devic
 [root@w1 /]# df -h | grep mountpoint
 ```
 
-### Paso 2
-
 ### Paso 3
+
+```bash
+lab102-192:/vagrantk3s/ vagrant up w3
+lab102-192:/vagrantk3s/ vagrant ssh w3 -c "timedatectl | grep -q 'System clock synchronized: no' && sudo systemctl restart systemd-timesyncd"
+```
+
+```bash
+lab102-192:/ kubectl create -f filesystem.yaml
+```
+
+```bash
+lab102-192:/ kubectl -n  rook-ceph get pod -l app=rook-ceph-mds
+NAME                                    READY   STATUS    RESTARTS   AGE
+rook-ceph-mds-myfs-a-64dddcbbcd-hxnj2   1/1     Running   0          27s
+rook-ceph-mds-myfs-b-86f88f5db8-c8mtc   1/1     Running   0          27s
+```
+
+```bash
+lab102-192:/ kubectl -n rook-ceph exec -it $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" -o jsonpath='{.items[0].metadata.name}') -- bash
+bash: warning: setlocale: LC_CTYPE: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_COLLATE: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_MESSAGES: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_NUMERIC: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_TIME: cannot change locale (en_US.UTF-8): No such file or directory
+[root@rook-ceph-tools-58df894b89-v8dpn /]# ceph status
+  cluster:
+    id:     04bfe2d0-f221-4c28-a88f-89d22c6763c3
+    health: HEALTH_OK
+
+  services:
+    mon: 3 daemons, quorum a,b,d (age 10m)
+    mgr: a(active, since 104m)
+    mds: myfs:1 {0=myfs-a=up:active} 1 up:standby-replay
+    osd: 3 osds: 3 up (since 10m), 3 in (since 10m)
+
+  data:
+    pools:   3 pools, 96 pgs
+    objects: 102 objects, 214 MiB
+    usage:   3.5 GiB used, 86 GiB / 90 GiB avail
+    pgs:     96 active+clean
+
+  io:
+    client:   1.2 KiB/s rd, 2 op/s rd, 0 op/s wr
+```
+
+```
+mds: myfs:1 {0=myfs-a=up:active} 1 up:standby-replay
+```
+
+```bash
+kubectl create -f storageclassCephFS.yaml
+```
+
+```bash
+lab102-192:/aplicacionesCephRook/ kubectl create -f kube-registry.yaml
+persistentvolumeclaim/cephfs-pvc created
+deployment.apps/kube-registry created
+lab102-192:/aplicacionesCephRook/ kubectl create -f kubeRegistryService.yaml
+service/kube-registry created
+lab102-192:/aplicacionesCephRook/ kubectl create -f kubeRegistryProxy.yaml
+daemonset.apps/kube-registry-proxy created
+```
+
+```bash
+lab102-192:/ POD=$(kubectl get pods --namespace kube-system -l k8s-app=kube-registry -o template --template '{{range .items}}{{.metadata.name}} {{.status.phase}}{{"\n"}}{{end}}' | grep Running | head -1 | cut -f1 -d' ')
+lab102-192:/ kubectl port-forward --namespace kube-system $POD 5000:5000 &
+[1] 26879
+lab102-192:/ Forwarding from 127.0.0.1:5000 -> 5000
+Forwarding from [::1]:5000 -> 5000
+
+lab102-192:/ curl http://localhost:5000
+Handling connection for 5000
+```
+ 
+---
+
+```bash
+echo "FROM busybox" > Dockerfile
+```
+
+```bash
+lab102-192:/ docker build -t localhost:5000/my-busybox .
+Sending build context to Docker daemon  92.16kB
+Step 1/1 : FROM busybox
+latest: Pulling from library/busybox
+325d69979d33: Pull complete
+Digest: sha256:560af6915bfc8d7630e50e212e08242d37b63bd5c1ccf9bd4acccf116e262d5b
+Status: Downloaded newer image for busybox:latest
+ ---> 8135583d97fe
+Successfully built 8135583d97fe
+Successfully tagged localhost:5000/my-busybox:latest
+lab102-192:/ docker push localhost:5000/my-busybox:latest
+The push refers to repository [localhost:5000/my-busybox]
+Handling connection for 5000
+Handling connection for 5000
+9547b4c33213: Preparing
+Handling connection for 5000
+Handling connection for 5000
+9547b4c33213: Pushing [==================================================>]  5.092MB
+Handling connection for 5000
+9547b4c33213: Pushed
+Handling connection for 5000
+Handling connection for 5000
+Handling connection for 5000
+Handling connection for 5000
+Handling connection for 5000
+Handling connection for 5000
+latest: digest: sha256:5cd3db04b8be5773388576a83177aff4f40a03457a63855f4b9cbe30542b9a43 size: 528
+```
+
+```bash
+lab102-192:/ docker images
+REPOSITORY                  TAG       IMAGE ID       CREATED        SIZE
+busybox                     latest    8135583d97fe   2 weeks ago    4.86MB
+localhost:5000/my-busybox   latest    8135583d97fe   2 weeks ago    4.86MB
+```
+
+```bash
+lab102-192:/ curl http://localhost:5000/v2/_catalog
+Handling connection for 5000
+{"repositories":["my-busybox"]}
+```
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+    - name: my-container
+      image: localhost:5000/my-busybox
+      command: ["sleep", "3600"]
+```
+
+```bash
+lab102-192:/ kubectl run -i --tty p --image=localhost:5000/my-busybox -- sh
+```
+
+```bash
+lab102-192:/ kubectl get pods
+NAME                               READY   STATUS    RESTARTS   AGE
+p                                  1/1     Running   0          11m
+lab102-192:/ kubectl exec -it p -- sh
+/ # hostname
+p
+```
+
+```bash
+lab102-192:/ kubectl -n rook-ceph exec -it $( kubectl -n rook-ceph get pod -l app=rook-direct-mount --no-headers -o custom-columns=":metadata.name" ) -- bash
+bash: warning: setlocale: LC_CTYPE: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_COLLATE: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_MESSAGES: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_NUMERIC: cannot change locale (en_US.UTF-8): No such file or directory
+bash: warning: setlocale: LC_TIME: cannot change locale (en_US.UTF-8): No such file or directory
+[root@w1 /]# mon_endpoints=$(grep mon_host /etc/ceph/ceph.conf | cut -f3 -d' ')
+[root@w1 /]# my_secret=$(grep key /etc/ceph/keyring | cut -f3 -d' ')
+
+[root@w1 /]# mkdir /tmp/registry
+[root@w1 /]# mount -t ceph -o mds_namespace=myfs,name=admin,secret=$my_secret $mon_endpoints:/ /tmp/registry
+[root@w1 /]# find /tmp/registry -name my-busybox
+/tmp/registry/volumes/csi/csi-vol-23e896e8-05ed-11ee-8221-5ede4f76ef32/267a5223-222c-467e-bfbc-e6905ba13b93/docker/registry/v2/repositories/my-busybox
+```
